@@ -363,37 +363,20 @@ export default class BaseTool {
       this.activeAnimation = null;
 
       // eslint-disable-next-line no-loop-func, no-unused-vars
-      if (this.config.animations) Object.keys(this.config.animations.map((aniKey, aniValue) => {
+      if (this.config.animations) this.config.animations.forEach((aniKey, aniValue) => {
+        if (isMatch) return;
         const statesIndex = this.getIndexInEntityIndexes(this.getEntityIndexFromAnimation(aniKey));
-        // Comment here...
-        // isMatch = this.stateIsMatch(aniKey, states[statesIndex]);
 
-        // NOTE @2023.08.07
-        // Running template again seems to fix the issue that these are NOT evaluated once
-        // there are more than one entity used in animations, ie entity_indexes!
-        // With this addition, this seems to work again...
-        //
-        // Nope, not completely...
-        // No idea yet what's going wrong at the end...
-        //
-        // Again, second part (styles) is overwritten, while first test, state is still ok in the
-        // configuration. So somewhere the getJsTemplate does not use a merge to maintain
-        // the configuration...
         const tempConfig = JSON.parse(JSON.stringify(aniKey));
 
-        // let item = Templates.getJsTemplateOrValue(this, states[index], Merge.mergeDeep(aniKey));
         let item = Templates.getJsTemplateOrValue(this, states[index], Merge.mergeDeep(tempConfig));
         isMatch = this.stateIsMatch(item, states[statesIndex]);
         if (aniKey.debug) console.log('set values, item, aniKey', item, states, isMatch, this.config.animations);
-        //        console.log("set values, animations", aniKey, aniValue, statesIndex, isMatch, states);
 
         if (isMatch) {
           this.mergeAnimationData(item);
-          return true;
-        } else {
-          return false;
         }
-      }));
+      });
     }
     this._stateValue = this._stateValues[this.getIndexInEntityIndexes(this.defaultEntityIndex())];
     this._stateValuePrev = this._lastStateValues[this.getIndexInEntityIndexes(this.defaultEntityIndex())];

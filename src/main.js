@@ -159,18 +159,27 @@ class SwissArmyKnifeCard extends LitElement {
     this.iOS = (/iPad|iPhone|iPod/.test(window.navigator.userAgent)
                 || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1))
                 && !window.MSStream;
-    this.isSafari14 = this.isSafari && /Version\/14\.[0-9]/.test(window.navigator.userAgent);
-    this.isSafari15 = this.isSafari && /Version\/15\.[0-9]/.test(window.navigator.userAgent);
-    this.isSafari16 = this.isSafari && /Version\/16\.[0-9]/.test(window.navigator.userAgent);
-    this.isSafari16 = this.isSafari && /Version\/16\.[0-9]/.test(window.navigator.userAgent);
+    this.isSafari14 = this.isSafari && /Version\/14\.\d+/.test(window.navigator.userAgent);
+    this.isSafari15 = this.isSafari && /Version\/15\.\d+/.test(window.navigator.userAgent);
+    this.isSafari16 = this.isSafari && /Version\/16\.\d+/.test(window.navigator.userAgent);
+    this.isSafari17 = this.isSafari && /Version\/17\.\d+/.test(window.navigator.userAgent);
+    this.isSafari18 = this.isSafari && /Version\/18\.\d+/.test(window.navigator.userAgent);
+    // Use GTE 16 check for Safari 16+
+    this.isSafariGte16 = this.isSafari && /Version\/(?:1[6-9]|[2-9]\d)\.\d+/.test(window.navigator.userAgent);
+    // this.isSafariGte16 = this.isSafari && /Version\/1[6-9]\.[0-9]/.test(window.navigator.userAgent);
+    console.log('isSafariGte16', this.isSafariGte16);
 
     // The iOS app does not use a standard agent string...
     // See: https://github.com/home-assistant/iOS/blob/master/Sources/Shared/API/HAAPI.swift
     // It contains strings like "like Safari" and "OS 14_2", and "iOS 14.2.0"
 
-    this.isSafari14 = this.isSafari14 || /os 15.*like safari/.test(window.navigator.userAgent.toLowerCase());
-    this.isSafari15 = this.isSafari15 || /os 14.*like safari/.test(window.navigator.userAgent.toLowerCase());
+    this.isSafari14 = this.isSafari14 || /os 14.*like safari/.test(window.navigator.userAgent.toLowerCase());
+    this.isSafari15 = this.isSafari15 || /os 15.*like safari/.test(window.navigator.userAgent.toLowerCase());
     this.isSafari16 = this.isSafari16 || /os 16.*like safari/.test(window.navigator.userAgent.toLowerCase());
+    this.isSafari17 = this.isSafari17 || /os 17.*like safari/.test(window.navigator.userAgent.toLowerCase());
+    this.isSafari18 = this.isSafari18 || /os 18.*like safari/.test(window.navigator.userAgent.toLowerCase());
+    this.isSafariGte16 = this.isSafariGte16 || /os (?:1[6-9]|[2-9]\d).*like safari/.test(window.navigator.userAgent.toLowerCase());
+    // this.isSafariGte16 = this.isSafariGte16 || /os 1[6-9].*like safari/.test(window.navigator.userAgent);
 
     this.lovelace = SwissArmyKnifeCard.lovelace;
 
@@ -514,10 +523,10 @@ class SwissArmyKnifeCard extends LitElement {
     }
     if (!SwissArmyKnifeCard.lovelace.config.sak_sys_templates) {
       console.error(version, ' - SAK - System Templates reference NOT defined.');
-      throw Error(version, ' - card::get styles - System Templates reference NOT defined!');
+      throw Error(`${version} - card::get styles - System Templates reference NOT defined!`);
     }
     if (!SwissArmyKnifeCard.lovelace.config.sak_user_templates) {
-      console.warning(version, ' - SAK - User Templates reference NOT defined. Did you NOT include them?');
+      console.warn(`${version} - SAK - User Templates reference NOT defined. Did you NOT include them?`);
     }
 
     // #TESTING
@@ -614,22 +623,22 @@ class SwissArmyKnifeCard extends LitElement {
 
     let attrSet = false;
     let newStateStr;
-    let entityIsUndefined = false;
     // eslint-disable-next-line no-restricted-syntax, no-unused-vars
     for (value of this.config.entities) {
-      this.entities[index] = hass.states[this.config.entities[index].entity];
+      const entityId = this.config.entities[index].entity;
+      const entity = hass.states[entityId];
+      const entityIsUndefined = entity === undefined;
 
-      entityIsUndefined = this.entities[index] === undefined;
+      this.entities[index] = entity;
+
       if (entityIsUndefined) {
-        console.error('SAK - set hass, entity undefined: ', this.config.entities[index].entity);
-        // Temp disable throw Error(`Set hass, entity undefined: ${this.config.entities[index].entity}`);
+        console.warn(`[SAK] Entità non disponibile: ${entityId}`);
       }
 
-      // Get secondary info state if specified and available
+      // Secondary info
       if (this.config.entities[index].secondary_info) {
         secInfoSet = true;
-        newSecInfoState = entityIsUndefined ? undefined : this.entities[index][this.config.entities[index].secondary_info];
-        // newSecInfoStateStr = this._buildSecondaryInfo(newSecInfoState, this.config.entities[index]);
+        newSecInfoState = entityIsUndefined ? 'non disponibile' : entity[this.config.entities[index].secondary_info];
         newSecInfoStateStr = this._buildStateString(newSecInfoState, this.config.entities[index]);
 
         if (newSecInfoStateStr !== this.secondaryInfoStr[index]) {
@@ -638,10 +647,9 @@ class SwissArmyKnifeCard extends LitElement {
         }
       }
 
-      // Check for icon changes. Some icons can change independent of the state (battery) for instance
-      // Only monitor this if no fixed icon specified in the configuration
+      // Icona dinamica
       if (!this.config.entities[index].icon) {
-        newIconStr = entityIsUndefined ? undefined : hass.states[this.config.entities[index].entity].attributes.icon;
+        newIconStr = entityIsUndefined ? 'mdi:alert-circle-outline' : entity.attributes.icon;
 
         if (newIconStr !== this.iconStr[index]) {
           this.iconStr[index] = newIconStr;
@@ -672,9 +680,10 @@ class SwissArmyKnifeCard extends LitElement {
           attribute = this.config.entities[index].attribute.substr(0, arrayPos);
           attrMore = this.config.entities[index].attribute.substr(arrayPos, this.config.entities[index].attribute.length - arrayPos);
 
-          // Just hack, assume single digit index...
-          arrayIdx = attrMore[1];
-          arrayMap = attrMore.substr(4, attrMore.length - 4);
+          // Parse array index and map key properly
+          const bracketEnd = attrMore.indexOf(']');
+          arrayIdx = parseInt(attrMore.substring(1, bracketEnd), 10);
+          arrayMap = attrMore.substr(bracketEnd + 2, attrMore.length - bracketEnd - 2);
 
           // Fetch state
           attributeState = this.entities[index].attributes[attribute][arrayIdx][arrayMap];
@@ -682,7 +691,7 @@ class SwissArmyKnifeCard extends LitElement {
         } else if (dotPos !== -1) {
           // We have a map. Split...
           attribute = this.config.entities[index].attribute.substr(0, dotPos);
-          attrMore = this.config.entities[index].attribute.substr(arrayPos, this.config.entities[index].attribute.length - arrayPos);
+          attrMore = this.config.entities[index].attribute.substr(dotPos, this.config.entities[index].attribute.length - dotPos);
           arrayMap = attrMore.substr(1, attrMore.length - 1);
 
           // Fetch state
@@ -717,9 +726,6 @@ class SwissArmyKnifeCard extends LitElement {
         if (this.dev.debug) console.log('set hass - attrSet=false', this.cardId, `${new Date().getSeconds().toString()}.${new Date().getMilliseconds().toString()}`, newStateStr);
       }
 
-      // Extend a bit for entity changed. Might just help enough...
-      entityHasChanged ||= attrSet || secInfoSet;
-
       index += 1;
       attrSet = false;
       secInfoSet = false;
@@ -738,9 +744,8 @@ class SwissArmyKnifeCard extends LitElement {
 
     // Either one of the entities has changed, or the theme mode. So update all toolsets with new data.
     if (this.toolsets) {
-      this.toolsets.map((item) => {
+      this.toolsets.forEach((item) => {
         item.updateValues();
-        return true;
       });
     }
 
@@ -1213,9 +1218,8 @@ class SwissArmyKnifeCard extends LitElement {
     if (this.dev.debug) console.log('*****Event - card::firstUpdated', this.cardId, new Date().getTime());
 
     if (this.toolsets) {
-      this.toolsets.map(async (item) => {
+      this.toolsets.forEach((item) => {
         item.firstUpdated(changedProperties);
-        return true;
       });
     }
   }
@@ -1230,11 +1234,39 @@ class SwissArmyKnifeCard extends LitElement {
     if (this.dev.debug) console.log('*****Event - Updated', this.cardId, new Date().getTime());
 
     if (this.toolsets) {
-      this.toolsets.map(async (item) => {
+      this.toolsets.forEach((item) => {
         item.updated(changedProperties);
-        return true;
       });
     }
+  }
+
+  /** *****************************************************************************
+  * card::willUpdate()
+  *
+  * Summary.
+  *
+  */
+  willUpdate(changedProperties) {
+    if (this.toolsets) {
+      this.toolsets.forEach((item) => {
+        item.willUpdate(changedProperties);
+      });
+    }
+  }
+
+  /** *****************************************************************************
+  * card::willUpdate()
+  *
+  * Summary.
+  *
+  */
+  shouldUpdate(changedProperties) {
+    if (this.toolsets) {
+      this.toolsets.forEach((item) => {
+        item.shouldUpdate(changedProperties);
+      });
+    }
+    return true;
   }
 
   /** *****************************************************************************
@@ -1390,7 +1422,7 @@ class SwissArmyKnifeCard extends LitElement {
 
     svgItems.push(svg`
       <!-- SAK Card SVG Render -->
-      <svg id="rootsvg" xmlns="http://www/w3.org/2000/svg" xmlns:xlink="http://www/w3.org/1999/xlink"
+      <svg id="rootsvg" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
        class="${cardFilter}"
        style="${styleMap(this.themeIsDarkMode()
           ? this.styles.card.dark
@@ -1453,6 +1485,8 @@ class SwissArmyKnifeCard extends LitElement {
 _buildStateString(inState, entityConfig) {
   // Keep undefined as state. Do NOT change this one!!
   if (typeof inState === 'undefined') return inState;
+  // inState seems to be null when light is off!
+  if (inState === null) return inState;
 
   // New in v2.5.1: Check for built-in state converters
   if (entityConfig.convert) {
@@ -1560,7 +1594,7 @@ _buildStateString(inState, entityConfig) {
               }
               break;
             case 'rgb': {
-                const hsvColor = rgb2hsv(this.stateObj.attributes.rgb_color);
+                const hsvColor = rgb2hsv(entity.attributes.rgb_color);
                 // Modify the real rgb color for better contrast
                 if (hsvColor[1] < 0.4) {
                   // Special case for very light color (e.g: white)
@@ -1692,14 +1726,8 @@ _buildStateString(inState, entityConfig) {
     }
     // console.log('updateOnInterval', new Date(Date.now()).toString());
     // eslint-disable-next-line no-constant-condition
-    if (true) { // (this.stateChanged && !this.entityHistory.updating) {
-      // 2020.10.24
-      // Leave true, as multiple entities can be fetched. fetch every 5 minutes...
-      // this.stateChanged = false;
-      // console.log('updateOnInterval - updateData', new Date(Date.now()).toString());
-      this.updateData();
-      // console.log("*RC* updateOnInterval -> updateData", this.entityHistory);
-    }
+    // Update data (history) for entities that need it
+    this.updateData();
 
     if (!this.entityHistory.needed) {
       // console.log("*RC* updateOnInterval -> stop timer", this.entityHistory, this.interval);
@@ -1730,72 +1758,113 @@ _buildStateString(inState, entityConfig) {
 
   // async updateData({ config } = this) {
   async updateData() {
-    this.entityHistory.updating = true;
+  this.entityHistory.updating = true;
 
-    if (this.dev.debug) console.log('card::updateData - ENTRY', this.cardId);
+  if (this.dev.debug) {
+    console.log('card::updateData - ENTRY', this.cardId);
+  }
 
-    // We have a list of objects that might need some history update
-    // Create list to fetch.
-    const entityList = [];
-    let j = 0;
+  // We have a list of objects that might need some history update
+  const entityList = [];
+  let j = 0;
 
-    // #TODO
-    // Lookup in this.tools for bars, or better tools that need history...
-    // get that entity_index for that object
-    // add to list...
-    this.toolsets.map((toolset, k) => {
-      toolset.tools.map((item, i) => {
-        if ((item.type === 'bar')
-        || (item.type === 'sparkline')) {
-          if (item.tool.config?.period?.type === 'real_time') return true;
-          const end = new Date();
-          const start = new Date();
-          if (item.tool.config.period?.calendar?.period === 'day') {
-            start.setHours(0, 0, 0, 0);
-            start.setHours(start.getHours() + item.tool.config.period.calendar.offset * 24);
-            // For now assume 24 hours always, so if offset != 0, set end...
-            if (item.tool.config.period.calendar.offset !== 0) end.setHours(0, 0, 0, 0);
-          } else {
-            start.setHours(end.getHours()
-              - (item.tool.config.period?.rolling_window?.duration?.hour || item.tool.config.hours));
-          }
-          const attr = this.config.entities[item.tool.config.entity_index].attribute ? this.config.entities[item.tool.config.entity_index].attribute : null;
-
-          entityList[j] = ({
-            tsidx: k,
-            entityIndex: item.tool.config.entity_index,
-            entityId: this.entities[item.tool.config.entity_index].entity_id,
-            attrId: attr,
-            start,
-            end,
-            type: item.type,
-            idx: i,
-            // tsidx: k, entityIndex: item.tool.config.entity_index, entityId: this.entities[item.tool.config.entity_index].entity_id, attrId: attr, start, end, type: 'bar', idx: i,
-          });
-          j += 1;
+  this.toolsets.map((toolset, k) => {
+    toolset.tools.map((item, i) => {
+      if (item.type === 'bar' || item.type === 'sparkline') {
+        if (item.tool?.config?.period?.type === 'real_time') {
+          return true;
         }
-        return true;
-      });
+
+        const end = new Date();
+        const start = new Date();
+
+        if (item.tool?.config?.period?.calendar?.period === 'day') {
+          start.setHours(0, 0, 0, 0);
+          start.setHours(
+            start.getHours()
+            + ((item.tool.config.period.calendar.offset || 0) * 24),
+          );
+          // If offset != 0, set end to midnight
+          if ((item.tool.config.period.calendar.offset || 0) !== 0) {
+            end.setHours(0, 0, 0, 0);
+          }
+        } else {
+          const hours = item.tool?.config?.period?.rolling_window?.duration?.hour
+            || item.tool?.config?.hours
+            || 0;
+          start.setHours(end.getHours() - hours);
+        }
+
+        // Entity index validity check
+        const idx = item.tool?.config?.entity_index;
+
+        if (!this.entities || idx == null || !this.entities[idx]) {
+          console.error(
+            'SAK ERROR: invalid entity_index',
+            idx,
+            'cardId=', this.cardId,
+            'title=', this.config?.title,
+            'toolset=', k,
+            'toolIndex=', i,
+            'toolType=', item.type,
+            'entities_length=',
+            this.entities ? this.entities.length : 'none',
+            'toolConfig=', item.tool?.config,
+          );
+          // Skip this tool but do not crash the card
+          return true;
+        }
+
+        const attr = this.config.entities[idx]?.attribute
+          ? this.config.entities[idx].attribute
+          : null;
+
+        entityList[j] = {
+          tsidx: k,
+          entityIndex: idx,
+          entityId: this.entities[idx].entity_id,
+          attrId: attr,
+          start,
+          end,
+          type: item.type,
+          idx: i,
+        };
+        j += 1;
+      }
+
       return true;
     });
 
-    if (this.dev.debug) console.log('card::updateData - LENGTH', this.cardId, entityList.length, entityList);
+    return true;
+  });
 
-    // #TODO
-    // Quick hack to block updates if entrylist is empty
-    this.stateChanged = false;
+  if (this.dev.debug) {
+    console.log(
+      'card::updateData - LENGTH',
+      this.cardId,
+      entityList.length,
+      entityList,
+    );
+    console.log('card::updateData, entityList from tools', entityList);
+  }
 
-    if (this.dev.debug) console.log('card::updateData, entityList from tools', entityList);
+  // Quick hack to block updates if entrylist is empty
+  this.stateChanged = false;
 
-    try {
-      //      const promise = this.config.layout.vbars.map((item, i) => this.updateEntity(item, entity, i, start, end));
-      const promise = entityList.map((item, i) => this.updateEntity(item, i, item.start, item.end));
-      await Promise.all(promise);
-    } finally {
-      this.entityHistory.updating = false;
-    }
+  try {
+    const promise = entityList.map((item, i) => this.updateEntity(
+      item,
+      i,
+      item.start,
+      item.end,
+    ));
+    await Promise.all(promise);
+  } finally {
     this.entityHistory.updating = false;
   }
+
+  this.entityHistory.updating = false;
+}
 
   async updateEntity(entity, index, initStart, end) {
     let stateHistory = [];
@@ -1839,11 +1908,11 @@ _buildStateString(inState, entityConfig) {
       this.toolsets[entity.tsidx].tools[entity.idx].tool.series = [...stateHistory];
       this.requestUpdate();
     } else {
-      this.uppdate(entity, stateHistory);
+      this.updateBarData(entity, stateHistory);
     }
   }
 
-  uppdate(entity, hist) {
+  updateBarData(entity, hist) {
     if (!hist) return;
 
     // #LGTM: Unused variable getMin.

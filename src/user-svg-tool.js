@@ -125,8 +125,27 @@ export default class UserSvgTool extends BaseTool {
       return;
     }
 
-    this.injector.elementsToInject = this._card.shadowRoot.getElementById(
-      'usersvg-'.concat(this.toolId)).querySelectorAll('svg[data-src]:not(.injected-svg)');
+    const el = this._card?.shadowRoot?.getElementById?.(`usersvg-${this.toolId}`);
+    if (!el) {
+      // Retry with limit to avoid infinite setTimeout loops
+      if (!this._updateRetries) this._updateRetries = 0;
+      this._updateRetries++;
+      if (this._updateRetries < 10) {
+        setTimeout(() => this.updated?.(), 50);
+      } else {
+        if (this.dev.debug) console.warn(`[SAK] UserSvgTool ${this.toolId}: element not found after ${this._updateRetries} retries, giving up.`);
+        this._updateRetries = 0;
+      }
+      return;
+    }
+    this._updateRetries = 0;
+
+    // Guard: make sure the element is still connected to the DOM before injecting
+    if (!el.parentNode || !el.isConnected) {
+      return;
+    }
+
+    this.injector.elementsToInject = el.querySelectorAll('svg[data-src]:not(.injected-svg)');
     if (this.injector.elementsToInject.length !== 0) {
       SVGInjector(this.injector.elementsToInject, {
       afterAll(elementsLoaded) {
@@ -135,13 +154,19 @@ export default class UserSvgTool extends BaseTool {
         //
         // If loading failed, the options.svginject is set to false, so image will be
         // rendered as external image, if possible!
-        setTimeout(() => { myThis._card.requestUpdate(); }, 0);
+        if (myThis._card?.isConnected) {
+          setTimeout(() => { myThis._card.requestUpdate(); }, 0);
+        }
       },
       afterEach(err, svg) {
         if (err) {
           myThis.injector.error = err;
-          myThis.config.options.svginject = false;
-          throw err;
+          // Only disable svginject if it's not a "Parent node is null" error
+          if (!err.message || !err.message.includes('Parent node is null')) {
+            myThis.config.options.svginject = false;
+          }
+          // Don't re-throw — "Parent node is null" is expected during LitElement re-renders
+          console.warn(`[SAK] SVGInjector error for tool ${myThis.toolId}:`, err.message || err);
         } else {
           myThis.injector.error = '';
           myThis.injector.cache[myThis.imageCur] = svg;
@@ -172,9 +197,41 @@ export default class UserSvgTool extends BaseTool {
   _renderUserSvg() {
     this.MergeAnimationStyleIfChanged();
 
-    const images = Templates.getJsTemplateOrValue(this, this._stateValue, Merge.mergeDeep(this.images));
+    this._imageMissing = false;
+
+    let images = Templates.getJsTemplateOrValue(this, this._stateValue, Merge.mergeDeep(this.images));
+
+    // 🔄 Se `images` è un array (formato non compatibile), converti in oggetto:
+    if (Array.isArray(images)) {
+      const converted = {};
+      images.forEach((entry) => {
+        if (typeof entry === 'object') {
+          Object.assign(converted, entry);
+        }
+      });
+      images = converted;
+    }
     this.imagePrev = this.imageCur;
-    this.imageCur = images[this.item.image];
+    const imageKey = this.item.image?.toLowerCase?.() ?? '';
+    // console.debug(`[Swiss Army Knife] Stato immagine corrente: "${imageKey}"`);
+
+    if (['unknown', 'unavailable', 'none'].includes(imageKey)) {
+      console.warn(`[Swiss Army Knife] Stato "${imageKey}" non valido. Uso 'imageoff'.`);
+      this.imageCur = images.imageoff ?? images.default ?? 'fallback.svg';
+      this._imageMissing = !images.imageoff && !images.default;
+    } else if (images[this.item.image]) {
+      this.imageCur = images[this.item.image];
+    } else if (images.default) {
+      console.warn(`[Swiss Army Knife] Immagine "${this.item.image}" non trovata, uso 'default'.`);
+      this.imageCur = images.default;
+    } else if (Object.values(images).length > 0) {
+      console.warn(`[Swiss Army Knife] Immagine "${this.item.image}" non trovata, uso la prima disponibile.`);
+      this.imageCur = Object.values(images)[0];
+    } else {
+      console.warn(`[Swiss Army Knife] Immagine "${this.item.image}" non trovata, uso 'fallback.svg'.`);
+      this.imageCur = 'fallback.svg';
+      this._imageMissing = true;
+    }
 
     // Render nothing if no image found
     if (images[this.item.image] === 'none')
@@ -217,9 +274,9 @@ export default class UserSvgTool extends BaseTool {
         `;
     }
 
-    const dotPosition = images[this.item.image].lastIndexOf('.');
-    const imageExtension = images[this.item.image]
-                            .substring(dotPosition === -1 ? Infinity : dotPosition + 1);
+    const imageUrl = images[this.item.image];
+    const dotPosition = imageUrl?.lastIndexOf?.('.') ?? -1;
+    const imageExtension = dotPosition === -1 ? '' : imageUrl.substring(dotPosition + 1);
 
     // Use default external image renderer if not an SVG extension
     // Image can be any jpg, png or other image like via the HA /api/ (person image)
@@ -233,7 +290,11 @@ export default class UserSvgTool extends BaseTool {
             href="${images[this.item.image]}"
             height="${this.svg.height}" width="${this.svg.width}"
           />
-        </svg>
+          ${this._imageMissing ? svg`
+            <text x="${this.svg.x + 4}" y="${this.svg.y + 20}" fill="red" font-size="12">
+              ⚠️ Image not found
+            </text>` : svg``}
+          </svg>
         `;
     // Must be svg. Render for the first time, if not in cache...
     // Render injected SVG's as invisible (add hidden class while injecting) and
@@ -251,22 +312,32 @@ export default class UserSvgTool extends BaseTool {
             href="${images[this.item.image]}"
             height="${this.svg.height}" width="${this.svg.width}"
           />
+          ${this._imageMissing ? svg`
+            <text x="${this.svg.x + 4}" y="${this.svg.y + 20}" fill="red" font-size="12">
+              ⚠️ Image not found
+            </text>` : svg``}
         </svg>
       `;
     // Render from cache and pass clip path and mask as reference...
     // Remove hidden class that prevented weird initial renderings
     } else {
-      cachedSvg.classList.remove('hidden');
-      return svg`
-        <svg x="${this.svg.x}" y="${this.svg.y}" style="${styleMap(this.styles.usersvg)}"
-          height="${this.svg.height}" width="${this.svg.width}"
-          clip-path="${clipPathUrl}"
-          mask="${maskUrl}"
-        >
-          "${clipPath}"
-          ${cachedSvg};
-       </svg>
-       `;
+      if (cachedSvg && cachedSvg.classList) {
+        cachedSvg.classList.remove('hidden');
+
+        return svg`
+          <svg x="${this.svg.x}" y="${this.svg.y}" style="${styleMap(this.styles.usersvg)}"
+            height="${this.svg.height}" width="${this.svg.width}"
+            clip-path="${clipPathUrl}"
+            mask="${maskUrl}"
+          >
+            ${clipPath}
+            ${cachedSvg}
+          </svg>
+        `;
+      } else {
+        console.warn('[SAK] cachedSvg nullo o non valido, impossibile renderizzare.');
+        return svg``;
+      }
     }
   }
 

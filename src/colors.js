@@ -17,6 +17,8 @@ export default class Colors {
   static {
     Colors.colorCache = {};
     Colors.element = undefined;
+    Colors._canvas = null;
+    Colors._ctx = null;
   }
 
   /** *****************************************************************************
@@ -30,6 +32,8 @@ export default class Colors {
   */
   static _prefixKeys(argColors) {
     let prefixedColors = {};
+
+    if (!argColors || typeof argColors !== 'object') return prefixedColors;
 
     Object.keys(argColors).forEach((key) => {
       const prefixedKey = `--${key}`;
@@ -163,6 +167,10 @@ export default class Colors {
         }
       }
     }
+    // Guard: if no matching interval was found, return fallback
+    if (start === undefined || end === undefined || val === undefined) {
+      return argStops[sortedStops[l - 1]];
+    }
     return Colors.getGradientValue(start, end, val);
   }
 
@@ -202,6 +210,10 @@ export default class Colors {
         }
       }
     }
+    // Guard: if no matching interval was found, return fallback
+    if (start === undefined || end === undefined || val === undefined) {
+      return argStops[sortedStops[l - 1]];
+    }
     return Colors.getGradientValue(start, end, val);
   }
 
@@ -233,7 +245,8 @@ export default class Colors {
     const newColor = argColor.substr(4, argColor.length - 5);
 
     const returnColor = window.getComputedStyle(Colors.element).getPropertyValue(newColor);
-    return returnColor;
+    // If CSS variable is not defined, getPropertyValue returns empty string
+    return returnColor && returnColor.trim() ? returnColor.trim() : null;
   }
 
   /** *****************************************************************************
@@ -256,16 +269,27 @@ export default class Colors {
     const resultColorA = Colors.colorToRGBA(argColorA);
     const resultColorB = Colors.colorToRGBA(argColorB);
 
-    // We have a rgba() color array from cache or canvas.
-    // Calculate color in between, and return #hex value as a result.
-    //
+    // Guard: if either color could not be resolved, return a fallback
+    if (!resultColorA || !resultColorB) return '#00000000';
 
-    const v1 = 1 - argValue;
-    const v2 = argValue;
-    const rDec = Math.floor((resultColorA[0] * v1) + (resultColorB[0] * v2));
-    const gDec = Math.floor((resultColorA[1] * v1) + (resultColorB[1] * v2));
-    const bDec = Math.floor((resultColorA[2] * v1) + (resultColorB[2] * v2));
-    const aDec = Math.floor((resultColorA[3] * v1) + (resultColorB[3] * v2));
+    // Guard: if argValue is NaN or undefined, return first color as fallback
+    if (argValue == null || isNaN(argValue)) {
+      const r = Colors.padZero(Math.max(0, Math.min(255, resultColorA[0])).toString(16));
+      const g = Colors.padZero(Math.max(0, Math.min(255, resultColorA[1])).toString(16));
+      const b = Colors.padZero(Math.max(0, Math.min(255, resultColorA[2])).toString(16));
+      const a = Colors.padZero(Math.max(0, Math.min(255, resultColorA[3])).toString(16));
+      return `#${r}${g}${b}${a}`;
+    }
+
+    // Clamp interpolation value to [0, 1]
+    const v2 = Math.max(0, Math.min(1, argValue));
+    const v1 = 1 - v2;
+
+    // Calculate and clamp each channel to [0, 255]
+    const rDec = Math.max(0, Math.min(255, Math.round((resultColorA[0] * v1) + (resultColorB[0] * v2))));
+    const gDec = Math.max(0, Math.min(255, Math.round((resultColorA[1] * v1) + (resultColorB[1] * v2))));
+    const bDec = Math.max(0, Math.min(255, Math.round((resultColorA[2] * v1) + (resultColorB[2] * v2))));
+    const aDec = Math.max(0, Math.min(255, Math.round((resultColorA[3] * v1) + (resultColorB[3] * v2))));
 
     // And convert full RRGGBBAA value to #hex.
     const rHex = Colors.padZero(rDec.toString(16));
@@ -299,27 +323,34 @@ export default class Colors {
   */
 
   static colorToRGBA(argColor) {
+    if (argColor == null || argColor === '') return ([0, 0, 0, 0]);
+
     // return color if found in colorCache...
     const retColor = Colors.colorCache[argColor];
     if (retColor) return retColor;
 
     let theColor = argColor;
     // Check for 'var' colors
-    const a0 = argColor.substr(0, 3);
-    if (a0.valueOf() === 'var') {
+    if (typeof argColor === 'string' && argColor.substr(0, 3) === 'var') {
       theColor = Colors.getColorVariable(argColor);
+      // If CSS variable was not found, return transparent and cache it
+      if (!theColor) {
+        Colors.colorCache[argColor] = [0, 0, 0, 0];
+        return [0, 0, 0, 0];
+      }
     }
 
-    // Get color from canvas. This always returns an rgba() value...
-    const canvas = window.document.createElement('canvas');
-    // eslint-disable-next-line no-multi-assign
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext('2d');
+    // Reuse a single canvas for color conversion (performance)
+    if (!Colors._canvas) {
+      Colors._canvas = window.document.createElement('canvas');
+      Colors._canvas.width = Colors._canvas.height = 1;
+      Colors._ctx = Colors._canvas.getContext('2d');
+    }
 
-    ctx.clearRect(0, 0, 1, 1);
-    ctx.fillStyle = theColor;
-    ctx.fillRect(0, 0, 1, 1);
-    const outColor = [...ctx.getImageData(0, 0, 1, 1).data];
+    Colors._ctx.clearRect(0, 0, 1, 1);
+    Colors._ctx.fillStyle = theColor;
+    Colors._ctx.fillRect(0, 0, 1, 1);
+    const outColor = [...Colors._ctx.getImageData(0, 0, 1, 1).data];
 
     Colors.colorCache[argColor] = outColor;
 

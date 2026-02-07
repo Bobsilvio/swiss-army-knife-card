@@ -26,6 +26,9 @@ import TextTool from './text-tool';
 import UserSvgTool from './user-svg-tool';
 import Colors from './colors';
 
+// Experimental, WIP
+import ProgressPathTool from './progress-path-tool';
+
 /** ***************************************************************************
   * Toolset class
   *
@@ -111,6 +114,7 @@ export default class Toolset {
       switch: SwitchTool,
       text: TextTool,
       usersvg: UserSvgTool,
+      progpath: ProgressPathTool,
     };
 
     this.config.tools.map((toolConfig) => {
@@ -151,9 +155,7 @@ export default class Toolset {
   updateValues() {
     if (this.dev.performance) console.time(`--> ${this.toolsetId} PERFORMANCE Toolset::updateValues`);
     if (this.tools) {
-      this.tools.map((item, index) => {
-        // eslint-disable-next-line no-constant-condition
-        if (true || item.type === 'segarc') {
+      this.tools.forEach((item, index) => {
           if ((item.tool.config.hasOwnProperty('entity_index'))) {
             if (this.dev.debug) console.log('Toolset::updateValues', item, index);
             // if (this.dev.debug) console.log('Toolset::updateValues', typeof item.tool._stateValue);
@@ -192,8 +194,6 @@ export default class Toolset {
 
             item.tool.values = valueList;
           }
-        }
-        return true;
       });
     }
     if (this.dev.performance) console.timeEnd(`--> ${this.toolsetId} PERFORMANCE Toolset::updateValues`);
@@ -219,10 +219,10 @@ export default class Toolset {
   *
   */
   disconnectedCallback() {
-    if (this.dev.performance) console.time(`--> ${this.cardId} PERFORMANCE Toolset::disconnectedCallback`);
+    if (this.dev.performance) console.time(`--> ${this.toolsetId} PERFORMANCE Toolset::disconnectedCallback`);
 
     if (this.dev.debug) console.log('*****Event - disconnectedCallback', this.toolsetId, new Date().getTime());
-    if (this.dev.performance) console.timeEnd(`--> ${this.cardId} PERFORMANCE Toolset::disconnectedCallback`);
+    if (this.dev.performance) console.timeEnd(`--> ${this.toolsetId} PERFORMANCE Toolset::disconnectedCallback`);
   }
 
   /** *****************************************************************************
@@ -258,6 +258,46 @@ export default class Toolset {
       this.tools.map((item) => {
         if (typeof item.tool.updated === 'function') {
           item.tool.updated(changedProperties);
+          return true;
+        }
+        return false;
+      });
+    }
+  }
+
+  /** *****************************************************************************
+  * Toolset::willUpdate()
+  *
+  * Summary.
+  *
+  */
+  willUpdate(changedProperties) {
+    if (this.dev.debug) console.log('*****Event - willUpdate', this.toolsetId, new Date().getTime());
+
+    if (this.tools) {
+      this.tools.map((item) => {
+        if (typeof item.tool.willUpdate === 'function') {
+          item.tool.willUpdate(changedProperties);
+          return true;
+        }
+        return false;
+      });
+    }
+  }
+
+  /** *****************************************************************************
+  * Toolset::shouldUpdate()
+  *
+  * Summary.
+  *
+  */
+  shouldUpdate(changedProperties) {
+    if (this.dev.debug) console.log('*****Event - shouldUpdate', this.toolsetId, new Date().getTime());
+
+    if (this.tools) {
+      this.tools.map((item) => {
+        if (typeof item.tool.shouldUpdate === 'function') {
+          item.tool.shouldUpdate(changedProperties);
           return true;
         }
         return false;
@@ -302,8 +342,8 @@ export default class Toolset {
     // Note:
     // Rotating a card can produce different results on several browsers.
     // A 1:1 card / toolset gives the same results, but other aspect ratio's may give different results.
-
-    if (((this._card.isSafari) || (this._card.iOS)) && (!this._card.isSafari16)) {
+    // if (((this._card.isSafari) || (this._card.iOS)) && (!this._card.isSafariGte16)) {
+    if (((this._card.isSafari) || (this._card.iOS)) && (!this._card.isSafariGte16)) {
       //
       // Render path for Safari if not Safari 16:
       //

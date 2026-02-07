@@ -1,4 +1,5 @@
 import { svg } from 'lit-element';
+import { ifDefined } from 'lit-html/directives/if-defined.js';
 import { styleMap } from 'lit-html/directives/style-map.js';
 import { classMap } from 'lit-html/directives/class-map.js';
 
@@ -384,11 +385,10 @@ export default class SegmentedArcTool extends BaseTool {
         //      if ((this._arcId)) {
         if (this.dev.debug) console.log('RENDERNEW _arcId DOES exist', this._arcId, this.toolId, this._firstUpdatedCalled);
 
-        // Render current from cache
+        // Render current from cache (skip null/undefined)
         this._cache.forEach((item, index) => {
-          d = item;
+          const dCached = item ?? undefined;
 
-          // extra, set color from colorlist as a test
           if (this.config.isScale) {
             let fill = this.config.color;
             if (this.config.show.style === 'colorlist') {
@@ -396,21 +396,18 @@ export default class SegmentedArcTool extends BaseTool {
             }
             if (this.config.show.style === 'colorstops') {
               fill = this._segments.colorStops[this._segments.sortedStops[index]];
-              // stroke = this.config.segments.colorstops.stroke ? this._segments.colorStops[this._segments.sortedStops[index]] : '';
             }
-
             if (!this.styles.foreground[index]) {
               this.styles.foreground[index] = Merge.mergeDeep(this.config.styles.foreground);
             }
-
             this.styles.foreground[index].fill = fill;
-            // this.styles.foreground[index]['stroke'] = stroke;
           }
 
           svgItems.push(svg`<path id="arc-segment-${this.toolId}-${index}" class="sak-segarc__foreground"
                             style="${styleMap(this.styles.foreground[index])}"
-                            d="${d}"
-                            />`);
+                            d=${ifDefined(dCached)}
+                            ?hidden=${!dCached}
+                            ></path>`);
         });
 
         const tween = {};
@@ -551,18 +548,11 @@ export default class SegmentedArcTool extends BaseTool {
               ? ((runningSegmentAngle <= currentValue.boundsEnd) && (runningSegmentAngle >= currentValue.boundsStart))
               : ((runningSegmentAngle <= currentValue.boundsStart) && (runningSegmentAngle >= currentValue.boundsEnd))));
 
-            if (!increase) {
-              if (runningSegmentPrev !== runningSegment) {
+              if (!increase && runningSegmentPrev !== runningSegment) {
                 if (thisTool.debug) console.log('RENDERNEW movit - remove path', thisTool.toolId, runningSegmentPrev);
-                if (thisTool._arc.clockwise) {
-                  as.removeAttribute('d');
-                  thisTool._cache[runningSegmentPrev] = null;
-                } else {
-                  as.removeAttribute('d');
-                  thisTool._cache[runningSegmentPrev] = null;
-                }
+                if (as) as.removeAttribute('d');
+                thisTool._cache[runningSegmentPrev] = undefined; // <-- uguale per tutti
               }
-            }
             tween.runningAngle = runningSegmentAngle;
             if (thisTool.debug) console.log('RENDERNEW - animation loop tween', thisTool.toolId, tween, runningSegment, runningSegmentPrev);
           } while ((tween.runningAngle !== tween.frameAngle) /* && (runningSegment == runningSegmentPrev) */);
