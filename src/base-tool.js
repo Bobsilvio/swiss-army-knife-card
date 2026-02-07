@@ -1,7 +1,8 @@
+/* global requestAnimationFrame */
 import { fireEvent } from './frontend_mods/common/dom/fire_event';
 
 import Merge from './merge';
-import Utils from './utils';
+import Utils, { PerformanceMonitor } from './utils';
 import Templates from './templates';
 import Colors from './colors';
 
@@ -13,6 +14,12 @@ import Colors from './colors';
   */
 
 export default class BaseTool {
+  static styleCache = new Map();
+
+  static pendingRenderUpdates = new Set();
+
+  static rafId = null;
+
   constructor(argToolset, argConfig, argPos) {
     this.toolId = Math.random().toString(36).substr(2, 9);
     this.toolset = argToolset;
@@ -398,10 +405,32 @@ export default class BaseTool {
     if (this.animationStyleHasChanged) {
       this.animationStyleHasChanged = false;
       let styles = this.config?.styles || this.config[this.config.type]?.styles;
-      if (argDefaultStyles) {
-        this.styles = Merge.mergeDeep(argDefaultStyles, styles, this.animationStyle);
+
+      // Create cache key for style combination
+      const cacheKey = JSON.stringify({
+        config: styles,
+        animation: this.animationStyle,
+        default: argDefaultStyles,
+      });
+
+      // Check cache first
+      if (BaseTool.styleCache.has(cacheKey)) {
+        this.styles = BaseTool.styleCache.get(cacheKey);
       } else {
-        this.styles = Merge.mergeDeep(styles, this.animationStyle);
+        // Compute and cache result
+        if (argDefaultStyles) {
+          this.styles = Merge.mergeDeep(argDefaultStyles, styles, this.animationStyle);
+        } else {
+          this.styles = Merge.mergeDeep(styles, this.animationStyle);
+        }
+
+        // Limit cache size to prevent memory leaks
+        if (BaseTool.styleCache.size > 1000) {
+          const firstKey = BaseTool.styleCache.keys().next().value;
+          BaseTool.styleCache.delete(firstKey);
+        }
+
+        BaseTool.styleCache.set(cacheKey, this.styles);
       }
 
       if (this.styles.card) {
@@ -409,7 +438,25 @@ export default class BaseTool {
           this._card.styles.card = Merge.mergeDeep(this.styles.card);
         }
       }
+
+      // Batch render updates using RAF
+      this.scheduleRenderUpdate();
     }
+  }
+
+  static scheduleRenderUpdate() {
+    if (!BaseTool.rafId) {
+      BaseTool.rafId = requestAnimationFrame(() => {
+        BaseTool.pendingRenderUpdates.forEach((tool) => {
+          if (tool._card?.requestUpdate) {
+            tool._card.requestUpdate();
+          }
+        });
+        BaseTool.pendingRenderUpdates.clear();
+        BaseTool.rafId = null;
+      });
+    }
+    BaseTool.pendingRenderUpdates.add(this);
   }
 
   /** *****************************************************************************

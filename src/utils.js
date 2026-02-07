@@ -2,6 +2,7 @@ import {
   SVG_DEFAULT_DIMENSIONS,
   SVG_DEFAULT_DIMENSIONS_HALF,
 } from './const';
+import PerformanceMonitor from './performance-monitor.js';
 
 /** ***************************************************************************
   * Utils class
@@ -82,3 +83,6 @@ export default class Utils {
     return null;
   }
 }
+
+// Re-export PerformanceMonitor as named export for compatibility
+export { PerformanceMonitor };

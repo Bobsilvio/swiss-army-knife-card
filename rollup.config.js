@@ -3,6 +3,7 @@ import json from '@rollup/plugin-json';
 import serve from 'rollup-plugin-serve';
 import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 const dev = process.env.ROLLUP_WATCH || process.env.DEV;
 
@@ -49,6 +50,12 @@ export default {
       mangle: {
         safari10: true,
       },
+    }),
+    !dev && visualizer({
+      filename: 'dist/bundle-analysis.html',
+      open: false,
+      gzipSize: true,
+      brotliSize: true,
     }),
   ],
 };
