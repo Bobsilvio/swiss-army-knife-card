@@ -129,7 +129,7 @@ export default class UserSvgTool extends BaseTool {
     if (!el) {
       // Retry with limit to avoid infinite setTimeout loops
       if (!this._updateRetries) this._updateRetries = 0;
-      this._updateRetries++;
+      this._updateRetries += 1;
       if (this._updateRetries < 10) {
         setTimeout(() => this.updated?.(), 50);
       } else {

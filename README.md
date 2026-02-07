@@ -1,3 +1,10 @@
+New 3.0.0-dev
+
+Hello, it's a shame to lose this great work, now almost abandoned.
+I won't be doing any further development, but I will try to continue the project so that it works on the latest versions of HomeAssistant, as I use it myself.
+This card is extremely complex and complicated, but it has fantastic features.
+
+
 [![hacs][hacs-badge]][hacs-url]
 [![hacs][maintain_badge]][hacs-url]
 <br>[![release][release-badge]][release-url]
