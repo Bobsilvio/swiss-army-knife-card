@@ -440,7 +440,7 @@ export default class BaseTool {
       }
 
       // Batch render updates using RAF
-      this.scheduleRenderUpdate();
+      BaseTool.scheduleRenderUpdate.call(this);
     }
   }
 
