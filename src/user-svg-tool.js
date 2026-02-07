@@ -164,9 +164,9 @@ export default class UserSvgTool extends BaseTool {
           // Only disable svginject if it's not a "Parent node is null" error
           if (!err.message || !err.message.includes('Parent node is null')) {
             myThis.config.options.svginject = false;
+            console.warn(`[SAK] SVGInjector error for tool ${myThis.toolId}:`, err.message || err);
           }
-          // Don't re-throw — "Parent node is null" is expected during LitElement re-renders
-          console.warn(`[SAK] SVGInjector error for tool ${myThis.toolId}:`, err.message || err);
+          // "Parent node is null" is expected during LitElement re-renders, silently ignore
         } else {
           myThis.injector.error = '';
           myThis.injector.cache[myThis.imageCur] = svg;
