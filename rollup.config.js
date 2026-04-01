@@ -4,6 +4,7 @@ import serve from 'rollup-plugin-serve';
 import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
 import { visualizer } from 'rollup-plugin-visualizer';
+import typescript from '@rollup/plugin-typescript';
 
 const dev = process.env.ROLLUP_WATCH || process.env.DEV;
 
@@ -19,7 +20,7 @@ const serveopts = {
 };
 
 export default {
-  input: 'src/main.js',
+  input: 'src/main.ts',
   output: {
     file: 'dist/swiss-army-knife-card.js',
     format: 'es',
@@ -38,6 +39,16 @@ export default {
     exclude: 'node_modules/**',
   },
   plugins: [
+    typescript({
+      tsconfig: './tsconfig.json',
+      sourceMap: !!dev,
+      compilerOptions: {
+        noEmit: false,
+        declaration: false,
+        allowJs: false,
+        allowImportingTsExtensions: false,
+      },
+    }),
     commonjs(),
     //   json({
     //   include: 'package.json',

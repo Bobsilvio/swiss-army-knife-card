@@ -1,17 +1,20 @@
 {
   "name": "swiss-army-knife",
-  "version": "3.0.0-dev",
+  "version": "3.0.1-dev",
   "description": "Swiss Army Knife for Lovelace",
   "main": "src/main.js",
   "type": "module",
   "scripts": {
-    "build": "npm run lint && npm run rollup",
+    "build": "npm run gen-templates && npm run rollup",
     "rollup": "rollup -c",
+    "gen-templates": "python3 scripts/generate-builtin-templates.py || node scripts/generate-builtin-templates.js",
     "lint": "eslint src/*.js",
     "watch": "rollup -c --watch",
     "postversion": "npm run build",
     "audit-fix": "npx yarn-audit-fix",
     "serve": "rollup -c serve.config.js --watch",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
@@ -23,6 +26,7 @@
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-node-resolve": "^15.0.2",
     "@rollup/plugin-terser": "^0.4.1",
+    "@rollup/plugin-typescript": "^11.1.0",
     "@vitest/ui": "^4.0.18",
     "eslint": "^8.2.0",
     "eslint-config-airbnb-base": "^15.0.0",
@@ -30,6 +34,8 @@
     "rollup": "^3.29.5",
     "rollup-plugin-serve": "^2.0.2",
     "rollup-plugin-visualizer": "^6.0.5",
+    "tslib": "^2.6.0",
+    "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   },
   "dependencies": {
@@ -37,6 +43,7 @@
     "@mdi/js": "^7.2.96",
     "@tanem/svg-injector": "^10.1.53",
     "home-assistant-js-websocket": "^5.7.0",
+    "lit": "^3.0.0",
     "lit-element": "^2.5.1",
     "lit-html": "^1.4.1",
     "memoize-one": "^6.0.0"

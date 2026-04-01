@@ -4,6 +4,167 @@ Hello, it's a shame to lose this great work, now almost abandoned.
 I won't be doing any further development, but I will try to continue the project so that it works on the latest versions of HomeAssistant, as I use it myself.
 This card is extremely complex and complicated, but it has fantastic features.
 
+---
+
+## Changes in this fork (3.0.0-dev)
+
+### TypeScript migration
+The entire source code has been migrated from JavaScript to TypeScript (`src/*.ts`). The build system uses `@rollup/plugin-typescript` and produces a single `dist/swiss-army-knife-card.js` bundle.
+
+### Standalone mode — no external YAML files required
+
+#### Do I need to import anything in Lovelace?
+
+**No.** The SAK CSS and SVG system definitions (all 22 CSS blocks and 8 SVG blocks from `sak-css-definitions.yml` and `sak-svg-definitions.yml`) are **embedded directly in the card bundle** (`src/sak-builtin-templates.ts`). Just add the card JS file to your Lovelace resources and it works immediately.
+
+The original card required a block like this in every dashboard configuration file:
+
+```yaml
+# NOT needed anymore in 3.0.1-dev
+sak_sys_templates:
+  definitions: !include sak-css-definitions.yml
+```
+
+This used a server-side `!include` directive, which is not supported in the Lovelace UI editor and required manual YAML file management. **That step is now gone.**
+
+#### How it works
+
+| Situation | Behaviour |
+|---|---|
+| No `sak_sys_templates` in Lovelace config (default) | Built-in definitions are used automatically |
+| `sak_sys_templates` defined in Lovelace config | Your definitions take precedence (backward compatible) |
+
+The embedded templates are regenerated automatically during build:
+```
+npm run build
+```
+or manually if you modify the definition YAML files in `dist/`:
+```
+python3 scripts/generate-builtin-templates.py
+```
+
+### `custom:sak-layout` — inline template definitions in Lovelace UI
+A new companion card `custom:sak-layout` replaces `vertical-stack` (and `horizontal-stack`) when you want to define SAK layout templates directly in the Lovelace card YAML, without editing the dashboard raw configuration.
+
+Any top-level key that is not `type`, `cards`, or `title` is treated as a SAK user template definition and is automatically injected so all child SAK cards can use it.
+
+**Vertical stack (default):**
+```yaml
+type: custom:sak-layout
+cards:
+  - type: custom:swiss-army-knife-card
+    entities:
+      - entity: sensor.my_sensor
+    layout:
+      template:
+        name: my_layout_template
+  - type: custom:swiss-army-knife-card
+    entities:
+      - entity: sensor.another_sensor
+    layout:
+      template:
+        name: my_layout_template
+
+my_layout_template:
+  template:
+    type: layout
+    defaults:
+      - var_entity_index: 0
+  layout:
+    aspectratio: 6/1
+    toolsets:
+      # ...
+```
+
+**Horizontal stack:**
+```yaml
+type: custom:sak-layout
+direction: horizontal
+cards:
+  - type: custom:swiss-army-knife-card
+    # ...
+```
+
+#### Template chains — templates that reference other templates
+
+A layout template can itself reference toolset templates or color swatch templates. All templates in the chain must be defined at the same top level inside `custom:sak-layout`. They are all injected together before the child cards render, so resolution works correctly even with nested dependencies.
+
+```yaml
+type: custom:sak-layout
+cards:
+  - type: custom:swiss-army-knife-card
+    entities:
+      - entity: sensor.solar_production
+        decimals: 0
+      - entity: sensor.grid_export
+        decimals: 0
+      - entity: sensor.home_consumption
+        decimals: 0
+      - entity: sensor.battery_level
+        decimals: 0
+      - entity: sensor.solar_production
+        secondary_info: last_changed
+        format: relative
+    layout:
+      template:
+        name: my_energy_layout
+
+# Main template (layout)
+my_energy_layout:
+  template:
+    type: layout
+    defaults:
+      - var_entity_index: 0
+  layout:
+    aspectratio: 6/1
+    toolsets:
+      - toolset: column-production
+        template:
+          name: my_segarc_toolset      # ← references the toolset template below
+          variables:
+            - var_toolset_position_cx: 260
+            - var_segarc_scale_max: 8900
+      - toolset: column-export
+        template:
+          name: my_segarc_toolset
+          variables:
+            - var_entity_index: 1
+            - var_toolset_position_cx: 355
+      # ...
+
+# Dependent template (toolset) — referenced by my_energy_layout
+my_segarc_toolset:
+  template:
+    type: toolset
+    defaults:
+      - var_entity_index: 0
+      - var_toolset_position_cx: 260
+      - var_segarc_scale_min: 0
+      - var_segarc_scale_max: 100
+  toolset:
+    position:
+      cx: '[[var_toolset_position_cx]]'
+      cy: 50
+    tools:
+      # ...
+
+# Color swatch template (optional) — referenced by a toolset via palette
+my_color_swatch:
+  template:
+    type: colorswatch
+  colorswatch:
+    modes:
+      light:
+        theme-sys-palette-primary50: 'darkblue'
+      dark:
+        theme-sys-palette-primary50: 'blue'
+```
+
+### Build changes
+- Removed ESLint from the build pipeline (source is now TypeScript, not JavaScript)
+- `npm run gen-templates` is called once during `npm run build` (no longer called twice)
+- Build command: `npm run build`
+
 
 [![hacs][hacs-badge]][hacs-url]
 [![hacs][maintain_badge]][hacs-url]
